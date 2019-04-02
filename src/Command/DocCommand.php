@@ -2,16 +2,20 @@
 
 namespace EasyCorp\Bundle\EasyDocBundle\Command;
 
-use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\DependencyInjection\ContainerAwareInterface;
+use Symfony\Component\DependencyInjection\ContainerAwareTrait;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
 
-class DocCommand extends ContainerAwareCommand
+class DocCommand extends Command implements ContainerAwareInterface
 {
+    use ContainerAwareTrait;
+
     protected function configure()
     {
         $this
@@ -31,19 +35,19 @@ class DocCommand extends ContainerAwareCommand
         $params['project_score'] = $this->getProjectScore($params);
         $params['last_build_date'] = new \DateTime();
 
-        $docPath = $this->getContainer()->getParameter('kernel.cache_dir').'/doc.html';
-        file_put_contents($docPath, $this->getContainer()->get('twig')->render('@EasyDoc/doc.html.twig', $params));
+        $docPath = $this->container->getParameter('kernel.cache_dir').'/doc.html';
+        file_put_contents($docPath, $this->container->get('twig')->render('@EasyDoc/doc.html.twig', $params));
         $output->writeln(sprintf('[OK] The documentation was generated in %s', realpath($docPath)));
     }
 
     private function getProjectName()
     {
-        $composerJsonPath = $this->getContainer()->getParameter('kernel.root_dir').'/../composer.json';
+        $composerJsonPath = $this->container->getParameter('kernel.root_dir').'/../composer.json';
         if (file_exists($composerJsonPath)) {
             $composerJsonContents = json_decode(file_get_contents($composerJsonPath), true);
             list($vendorName, $projectName) = explode('/', $composerJsonContents['name']);
         } else {
-            $projectName = basename(dirname($this->getContainer()->getParameter('kernel.root_dir')));
+            $projectName = basename(dirname($this->container->getParameter('kernel.root_dir')));
         }
 
         $humanizedProjectName = ucwords(strtr($projectName, '_-', '  '));
@@ -64,7 +68,7 @@ class DocCommand extends ContainerAwareCommand
 
     private function getRoutes()
     {
-        $allRoutes = $this->getContainer()->get('router')->getRouteCollection();
+        $allRoutes = $this->container->get('router')->getRouteCollection();
         $routes = array();
         foreach ($allRoutes->all() as $name => $routeObject) {
             $route['name'] = $name;
@@ -91,13 +95,13 @@ class DocCommand extends ContainerAwareCommand
 
     private function getServices()
     {
-        $cachedFile = $this->getContainer()->getParameter('debug.container.dump');
+        $cachedFile = $this->container->getParameter('debug.container.dump');
         $container = new ContainerBuilder();
         $loader = new XmlFileLoader($container, new FileLocator());
         $loader->load($cachedFile);
 
         $services = array();
-        foreach ($this->getContainer()->getServiceIds() as $serviceId) {
+        foreach ($this->container->getServiceIds() as $serviceId) {
             $definition = $container->getDefinition($serviceId);
             $isShared = method_exists($definition, 'isShared') ? $definition->isShared() : 'prototype' !== $definition->getScope();
             $service['id'] = $serviceId;
@@ -121,7 +125,7 @@ class DocCommand extends ContainerAwareCommand
     {
         $packages = array();
 
-        $composerLockPath = $this->getContainer()->getParameter('kernel.root_dir').'/../composer.lock';
+        $composerLockPath = $this->container->getParameter('kernel.root_dir').'/../composer.lock';
         if (!file_exists($composerLockPath)) {
             return $packages;
         }
@@ -138,9 +142,9 @@ class DocCommand extends ContainerAwareCommand
     private function getBundles()
     {
         $bundles = array();
-        $rootDir = realpath($this->getContainer()->getParameter('kernel.root_dir').'/..').DIRECTORY_SEPARATOR;
+        $rootDir = realpath($this->container->getParameter('kernel.root_dir').'/..').DIRECTORY_SEPARATOR;
 
-        foreach ($this->getContainer()->get('kernel')->getBundles() as $bundleName => $bundleObject) {
+        foreach ($this->container->get('kernel')->getBundles() as $bundleName => $bundleObject) {
             $bundle = array(
                 'name' => $bundleObject->getName(),
                 'parent' => $bundleObject->getParent(),
